@@ -3,6 +3,8 @@ import os
 
 from parse import parse
 from webob import Request, Response
+
+from blueprint import Blueprint
 from .route import Route
 
 
@@ -13,6 +15,7 @@ class Orochi:
         self.debug = debug
         self.port = port
         self.static_files = static_files
+        self.blueprints = []
 
     def __call__(self, environ, start_response):
         request = Request(environ)
@@ -60,3 +63,7 @@ class Orochi:
         """ Add a new route """
         assert pattern not in self._routes
         self._routes[pattern] = Route(path_pattern=pattern, handler=handler, methods=methods)
+
+    def register_blueprint(self, blueprint: Blueprint):
+        self.blueprints.append(blueprint)
+        self._routes = dict(**self._routes, **blueprint.routes)

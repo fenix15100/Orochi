@@ -1,8 +1,8 @@
 import os
 
 from werkzeug import run_simple
-
 from orochi import Orochi
+from BookController import BookController
 from webob import Request, Response
 
 app = Orochi(port=8000,
@@ -18,12 +18,7 @@ def home(request: Request, response: Response, name: str):
     return response
 
 
-@app.route("/book/{name}")
-class BookController:
-    def get(self, request: Request, response: Response, name):
-        response.text = "BOOK" + name
-        return response
-
+app.register_blueprint(BookController)
 
 if __name__ == "__main__":
     run_simple('localhost',
