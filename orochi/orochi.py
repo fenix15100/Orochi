@@ -1,69 +1,53 @@
-import inspect
-import os
-
-from parse import parse
+from http import HTTPStatus
 from webob import Request, Response
-
-from blueprint import Blueprint
 from .route import Route
 
 
 class Orochi:
 
     def __init__(self, debug=False, port=8000, static_files=None):
-        self._routes = {}
+        self._routes = []
         self.debug = debug
         self.port = port
         self.static_files = static_files
-        self.blueprints = []
+        self._blueprints = []
 
     def __call__(self, environ, start_response):
         request = Request(environ)
-        response = self.handle_request(request)
+        response = self.dispatch_request(request)
 
         return response(environ, start_response)
 
-    def handle_request(self, request: Request):
+    def dispatch_request(self, request: Request):
         response = Response()
-        handler, kwargs = self.find_handler(request_path=request.path)
-        if handler is not None:
-            if inspect.isclass(handler):
-                handler = getattr(handler(), request.method.lower(), None)
+        for route in self._routes:
+            route: Route = route
+            match, parsed_parameters = route.match(request_path=request.path)
+            if match:
+                handler, error = route.handle_request(request, response)
+                if error is None:
+                    return handler(request, response, **parsed_parameters)
+                else:
+                    return self.error_response(response=response, http_status=error)
 
-                if handler is None:
-                    raise AttributeError("Method now allowed", request.method)
+            else:
+                return self.error_response(response=response, http_status=HTTPStatus.NOT_FOUND)
 
-            return handler(request, response, **kwargs)
-        else:
-            return self.default_response(response)
-
-    def find_handler(self, request_path):
-        for path, handler in self._routes.items():
-            parse_result = parse(path, request_path)
-            if parse_result is not None:
-                return handler, parse_result.named
-        return None, None
-
-    def default_response(self, response: Response):
-        response.status_code = 404
-        response.text = "Not found."
+    @classmethod
+    def error_response(cls, response: Response, http_status: HTTPStatus, message=None):
+        response.status_code = http_status.value
+        response.text = f"<h1><b>{str(http_status.value)} {http_status.phrase} {http_status.description}</b></h1></br" \
+                        f"><p>{message if message is not None else ''}</p> "
         return response
 
-    def route(self, path):
-        if path in self._routes:
-            raise AssertionError("Such route already exists.")
-
-        def wrapper(handler):
-            self._routes[path] = handler
+    def route(self, path: str, methods=None):
+        def wrapper(handler: callable):
+            self.add_route(pattern=path, handler=handler, methods=methods)
             return handler
 
         return wrapper
 
-    def add_route(self, pattern, handler, methods=None):
-        """ Add a new route """
-        assert pattern not in self._routes
-        self._routes[pattern] = Route(path_pattern=pattern, handler=handler, methods=methods)
-
-    def register_blueprint(self, blueprint: Blueprint):
-        self.blueprints.append(blueprint)
-        self._routes = dict(**self._routes, **blueprint.routes)
+    def add_route(self, pattern: str, handler: callable, methods=None) -> None:
+        route = [r for r in self._routes if r.__str__() == pattern]
+        assert len(route) == 0, f"Ruta duplicada: {pattern}"
+        self._routes.append(Route(path_pattern=pattern, handler=handler, methods=methods))

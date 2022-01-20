@@ -1,9 +1,7 @@
 import inspect
 from http import HTTPStatus
 from parse import parse
-
 from orochi.constants import ALL_HTTP_METHODS
-from orochi.exceptions import HTTPError
 
 
 class Route:
@@ -22,15 +20,18 @@ class Route:
 
         return False, None
 
-    def handle_request(self, request, response, **kwargs):
+    def handle_request(self, request, response):
+        error = None
         if inspect.isclass(self._handler):
             handler = getattr(self._handler(), request.method.lower(), None)
             if handler is None:
-                raise HTTPError(status=HTTPStatus.METHOD_NOT_ALLOWED)
+                error = HTTPStatus.METHOD_NOT_ALLOWED
         else:
             if request.method not in self._methods:
-                raise HTTPError(status=HTTPStatus.METHOD_NOT_ALLOWED)
-
+                error = HTTPStatus.METHOD_NOT_ALLOWED
             handler = self._handler
 
-        handler(request, response, **kwargs)
+        return handler, error
+
+    def __str__(self):
+        return self._path_pattern

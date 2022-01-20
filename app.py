@@ -2,7 +2,6 @@ import os
 
 from werkzeug import run_simple
 from orochi import Orochi
-from BookController import BookController
 from webob import Request, Response
 
 app = Orochi(port=8000,
@@ -12,13 +11,15 @@ app = Orochi(port=8000,
              })
 
 
-@app.route("/home/{name}")
+@app.route("/home/{name}", methods=["GET", "POST"])
 def home(request: Request, response: Response, name: str):
-    response.text = '<html><script src="http://localhost:8000/static/script.js"></script></html>'
+    if request.method == 'POST':
+        print(request)
+        response.json = request.json
+    elif request.method == 'GET':
+        response.text = name
     return response
 
-
-app.register_blueprint(BookController)
 
 if __name__ == "__main__":
     run_simple('localhost',
